@@ -10,11 +10,10 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Vanish", "Whispers88", "1.5.5")]
+    [Info("Vanish", "Whispers88", "1.5.6")]
     [Description("Allows players with permission to become invisible")]
     public class Vanish : CovalencePlugin
     {
-        static Vanish vanish;
         #region Configuration
         private readonly List<BasePlayer> _hiddenPlayers = new List<BasePlayer>();
         private readonly List<BasePlayer> _hiddenOffline = new List<BasePlayer>();
@@ -35,11 +34,8 @@ namespace Oxide.Plugins
             [JsonProperty("Use CanUseLockedEntity hook (Allows vanished players with the perm vanish.unlock to bypass locks. Set to false for better performance)")]
             public bool UseCanUseLockedEntity = true;
 
-            [JsonProperty("Hide an invisible players body under the terrain after disconnect")]
+            [JsonProperty("Keep a vanished player hidden on disconnect")]
             public bool HideOnDisconnect = true;
-
-            [JsonProperty("If a player was vanished on disconnection keep them vanished on reconnect")]
-            public bool HideOnReconnect = true;
 
             [JsonProperty("Turn off fly hack detection for players in vanish")]
             public bool AntiHack = true;
@@ -145,7 +141,6 @@ namespace Oxide.Plugins
 
         private void Init()
         {
-            vanish = this;
             cachedVanishUI = CreateVanishUI();
 
             // Register univeral chat/console commands
@@ -388,36 +383,24 @@ namespace Oxide.Plugins
             }
             return true;
         }
-
         private void OnPlayerDisconnected(BasePlayer player, string reason)
         {
             if (!IsInvisible(player)) return;
 
-            Reappear(player);
-
-            if (_hiddenPlayers.Count == 0) UnSubscribeFromHooks();
-
-            if (config.HideOnDisconnect)
+            if (!config.HideOnDisconnect && !HasPerm(player.UserIDString, permavanish))
+                Reappear(player);
+            else
             {
-                var pos = player.transform.position;
-                var underTerrainPos = new Vector3(pos.x, TerrainMeta.HeightMap.GetHeight(pos) - 5, pos.z);
-                player.Teleport(underTerrainPos);
-                player.DisablePlayerCollider();
-                player.limitNetworking = true;
-            }
-
-            if (config.HideOnReconnect)
                 _hiddenOffline.Add(player);
-
+                VanishPositionUpdate t;
+                if (player.TryGetComponent<VanishPositionUpdate>(out t))
+                    UnityEngine.Object.Destroy(t);
+            }
+            if (_hiddenPlayers.Count == 0) UnSubscribeFromHooks();
             CuiHelper.DestroyUi(player, "VanishUI");
             CuiHelper.DestroyUi(player, "VanishColliderUI");
         }
 
-        private object OnPlayerViolation(BasePlayer player, AntiHackType antiHackType)
-        {
-            if (antiHackType == AntiHackType.InsideTerrain && IsInvisible(player)) return false;
-            return null;
-        }
         #endregion Hooks
 
         #region GUI
@@ -471,6 +454,7 @@ namespace Oxide.Plugins
                 if (player.playerCollider.enabled)
                     player.DisablePlayerCollider();
                 player.transform.localScale = Vector3.zero;
+                player.lastAdminCheatTime = Time.time + 10000f;
             }
 
             void OnTriggerEnter(Collider col)
