@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Workcart Spawner", "SPooCK", "1.1.6")]
+    [Info("Workcart Spawner", "SPooCK", "1.1.7")]
     [Description("Auto monitor and replace Workcarts for custom maps.")]
     class WorkcartSpawner : RustPlugin
     {
@@ -138,7 +138,7 @@ namespace Oxide.Plugins
             trainEngine.driverProtection.density = Settings.Custom.protDensity;
 
             if (Settings.Custom.Slots > 1) {
-                StorageContainer storage = trainEngine.fuelSystem.GetFuelContainer();
+                StorageContainer storage = trainEngine.engineController.FuelSystem.GetFuelContainer();
                 storage.panelName = "generic";
                 storage.inventory.capacity = Settings.Custom.Slots;
 
@@ -180,7 +180,7 @@ namespace Oxide.Plugins
         object CanUseFuel(EntityFuelSystem fuelSystem, StorageContainer fuelContainer, float seconds, float fuelUsedPerSecond) {
             if (!CustomFuel) return null;
 
-            GameObject Track = TrackObjects.FirstOrDefault(x => x.Value == fuelSystem?.owner).Key;
+            GameObject Track = TrackObjects.FirstOrDefault(x => x.Value == fuelSystem.GetFuelContainer()?.GetParentEntity()).Key;
             if (Track.IsUnityNull() || fuelContainer.IsUnityNull()) return null;
 
             Item slot = fuelContainer?.inventory?.FindItemByItemID(LowGradeFuel);
@@ -200,7 +200,7 @@ namespace Oxide.Plugins
         object OnFuelItemCheck(EntityFuelSystem fuelSystem, StorageContainer fuelContainer) {
             if (!CustomFuel) return null;
 
-            GameObject Track = TrackObjects.FirstOrDefault(x => x.Value == fuelSystem?.owner).Key;
+            GameObject Track = TrackObjects.FirstOrDefault(x => x.Value == fuelSystem.GetFuelContainer()?.GetParentEntity()).Key;
             if (Track.IsUnityNull() || fuelContainer.IsUnityNull()) return null;
 
             List<Item> totItems = fuelContainer?.inventory?.FindItemsByItemID(LowGradeFuel);
