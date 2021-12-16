@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Chest Stacks", "supreme", "1.2.4")]
+    [Info("Chest Stacks", "supreme", "1.2.8")]
     [Description("Allows players to stack chests")]
     public class ChestStacks : RustPlugin
     {
@@ -24,6 +24,8 @@ namespace Oxide.Plugins
         private const string BoxFx = "assets/prefabs/deployable/woodenbox/effects/wooden-box-deploy.prefab";
         private const string BoxPrefab = "assets/prefabs/deployable/woodenbox/woodbox_deployed.prefab";
         private const string CoffinPrefab = "assets/prefabs/misc/halloween/coffin/coffinstorage.prefab";
+
+        private readonly List<ulong> _cachedChests = new List<ulong>();
 
         #endregion
 
@@ -101,11 +103,21 @@ namespace Oxide.Plugins
             return null;
         }
 
-        private void OnEntityKill(BoxStorage box)
+        private object OnEntityKill(BoxStorage box)
         {
             if (box == null)
             {
-                return;
+                return null;
+            }
+            
+            if (_pluginData.NetIds.Contains(box.net.ID) && box.health > 0 && HasGround(box) && !_cachedChests.Contains(box.net.ID))
+            {
+                return true;
+            }
+
+            if (_cachedChests.Contains(box.net.ID))
+            {
+                _cachedChests.Remove(box.net.ID);
             }
 
             List<BoxStorage> boxes = OverlapSphere<BoxStorage>(box.transform.position, 2f, Layers.Mask.Deployed);
@@ -119,6 +131,30 @@ namespace Oxide.Plugins
                     }
                 }
             }
+
+            return null;
+        }
+        
+        private void CanPickupEntity(BasePlayer player, BoxStorage box)
+        {
+            if (_pluginData.NetIds.Contains(box.net.ID))
+            {
+                _cachedChests.Add(box.net.ID);
+            }
+        }
+
+        #endregion
+
+        #region Remover Tool Hooks
+
+        private object canRemove(BasePlayer player, BoxStorage box)
+        {
+            if (_pluginData.NetIds.Contains(box.net.ID))
+            {
+                return true;
+            }
+
+            return null;
         }
 
         #endregion
@@ -415,6 +451,22 @@ namespace Oxide.Plugins
                 box.DropItems();
                 box.Kill();
             }
+        }
+
+        private bool HasGround(BoxStorage box)
+        {
+            if (box == null)
+            {
+                return false;
+            }
+            
+            RaycastHit hitInfo;
+            if (!Physics.Raycast(box.transform.position, Vector3.down, out hitInfo, 0.5F))
+            {
+                return false;
+            }
+
+            return true;
         }
         
         private List<T> OverlapSphere<T>(Vector3 pos, float radius, int layer)
